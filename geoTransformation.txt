@@ -1,0 +1,218 @@
+/*
+Translate the col_id or row_id to Xcoor or Ycoord respectively
+
+dim_id - Value of the col_id or row_id
+invertValue - Keep(1) or invert(-1) the resulting value
+length - Length of a single dim_id in the respective axis
+origin - Origin on the respective axes
+*/
+id2coord(dim_id, invertValue, length, origin) = invertValue * (dim_id * length + origin);
+/*
+Translate the Xcoor or Ycoord into the col_id or row_id respectively
+
+coord - Value of the Xcoor or Ycoord
+invertValue - Keep(1) or invert(-1) the resulting value
+length - Length of a single dim_id in the respective axis
+origin - Origin on the respective axes
+*/
+coord2id(coord, invertValue, length, origin) = (coord - origin * invertValue)/(length * invertValue);
+
+
+
+
+/*
+Contant PI
+-1 < x < 1
+PI() = 2 * (arcsin(sqrt(1 - pow(x,2)))) + abs(arcsin(x))
+*/
+PI() = 3.14159265358979323846;
+/*
+Transform decimal degrees to radians
+
+dec - Decimal degrees
+*/
+dd2rad(dec) = dec * PI() / 180;
+/*
+Transforms radians to decimal degrees
+
+rad - radians
+*/
+rad2dd(rad) = rad * 180 / PI();
+
+
+
+
+/*
+Transform spheric to sinusoidal coordinates
+
+r - Earth radius
+lon - Longitude radians
+lon0 - Origin longitude radians
+lat - Geocentric latitude radians
+*/
+spheric2sinusoidalX(r, lon, lon0, lat) = (lon - lon0) * cos(lat) * r;
+spheric2sinusoidalY(r, lat) = lat * r;
+/*
+Transform sinusoidal to spheric coordinates
+
+r - Earth radius
+lon - Longitude radians
+lon0 - Origin longitude radians
+lat - Geocentric latitude radians
+*/
+sinusoidal2sphericLON(x, lat, r, lon0) = x/(cos(lat) * r) + lon0;
+sinusoidal2sphericLAT(y, r) = y/r;
+sinusoidal2sphericR(x, y, lon, lat, lon0) = iif(lat != 0, y/lat, x/((lon - lon0) * cos(lat))); -- Not usefull since the radius is known beforehand
+
+
+
+
+/*
+Transform spherical coordinates to geocentric coordinates
+
+r - Earth radius
+lon - Longitude radians
+lat - Geocentric latitude radians
+*/
+spheric2geocentricX(r, lon, lat) = r * cos(lat) * cos(lon);
+spheric2geocentricY(r, lon, lat) = r * cos(lat) * sin(lon);
+spheric2geocentricZ(r, lat) = r * sin(lat);
+/*
+Transform geocentric to spherical coordinates
+
+x - Geocentric x
+y - Geocentric y
+z - Geocentric z
+*/
+geocentric2sphericR(x, y, z) = sqrt(pow(x,2) + pow(y,2) + pow(z,2));--Not useful since the radius is known beforehand
+geocentric2sphericLON(x, y) = iif(x != 0, atan(y/x), iif(y != 0, y/abs(y) * PI()/2, 0)) + quadrantfactor(x, y) where
+{
+	quadrantfactor(x, y) = iif(x >= 0, 0, iif(y >= 0, PI(), -1 * PI()));
+};
+geocentric2sphericLAT(x, y, z) = iif( x + y != 0, atan(z/sqrt(pow(x,2) + pow(y,2))), z/abs(z) * PI()/2);
+
+
+
+
+/*
+Transform ellipsoidal to geocentric coordinates
+
+a - Ellipsoid's semi-major axis
+f - Ellipsoid's flattening
+lon - Longitude in radians
+lat - Latitude in radians
+h - Ellipsoidal height (height above ellipsoid surface)
+*/
+ellipsoidal2geocentricX(a, f, lon, lat, h) = (v(a, f, lat) + h) * cos(lat) * cos(lon) where 
+{
+	e2(f) = 2 * f - pow(f, 2);
+	v(a, f, lat) = a/sqrt(1 - e2(f) * pow(sin(lat), 2));
+};
+ellipsoidal2geocentricY(a, f, lon, lat, h) = (v(a, f, lat) + h) * cos(lat) * sin(lon) where
+{
+	e2(f) = 2 * f - pow(f, 2);
+	v(a, f, lat) = a/sqrt(1 - e2(f) * pow(sin(lat), 2));
+};
+ellipsoidal2geocentricZ(a, f, lat, h) = ((1 - e2(f)) * v(a, f, lat) + h) * sin(lat) where
+{
+	e2(f) = 2 * f - pow(f, 2);
+	v(a, f, lat) = a/sqrt(1 - e2(f) * pow(sin(lat), 2));
+};
+/*
+Transform geocentric to ellipsoidal coordinates
+
+a - Ellipsoid's semi-major axis
+f - Ellipsoid's flattening f = (a-b)/a
+x - Geocentric x
+y - Geocentric y
+z - Geocentric z
+*/
+geocentric2ellipsoidalLON(x, y) = iif(x != 0, atan(y/x), iif(y != 0, y/abs(y) * PI()/2, 0)) + quadrantfactor(x, y) where
+{
+	quadrantfactor(x, y) = iif(x >= 0, 0, iif(y >= 0, PI(), -1 * PI()));
+};
+geocentric2ellipsoidalLAT(a, f, x, y, z) = atan((z + epsilon(f) * b(a, f) * pow(sin(u(a, f, x, y, z)), 3))/(p(x, y) - e2(f) * a * pow(cos(u(a, f, x, y, z)), 3))) where
+{
+	b(a, f) = a * (1 - f);
+	e2(f) = 2 * f - pow(f, 2);
+	p(x, y) = sqrt(pow(x, 2) + pow(y, 2));
+	epsilon(f) = e2(f)/(1 - e2(f));
+	u(a, f, x, y, z) = atan(z * a/(p(x, y) * b(a, f)));
+};
+geocentric2ellipsoidalH(a, f, x, y, lat) = p(x, y)/cos(lat) - v(a, f, lat) where
+{
+	e2(f) = 2 * f - pow(f, 2);
+	v(a, f, lat) = a/sqrt(1 - e2(f) * pow(sin(lat), 2));
+};
+/*
+Util
+*/
+--e2(f) = 2 * f - pow(f, 2); -- Squared eccentricity
+--v(a, f, lat) = a/sqrt(1 - e2(f) * pow(sin(lat), 2)); -- Radius of curvature in the prime vertical
+--b(a, f) = a * (1 - f); -- Ellipsoid's semi-minor axis
+--epsilon(f) = e2(f)/(1 - e2(f));
+--p(x, y) = sqrt(pow(x, 2) + pow(y, 2));
+--u(a, f, x, y, z) = atan(z * a/(p(x, y) * b(a, f)));
+
+
+
+
+/*
+Geocentric transformation - 3 parameters
+xSource - X coordinate 
+ySource - Y coordinate 
+zSource - Z coordinate 
+deltaX - X translation parameter (source to target)
+deltaY - Y translation parameter (source to target)
+deltaZ - Z translation parameter (source to target)
+*/
+geocentric3pTransformationX(xSource, deltaX) =  xSource + deltaX;
+geocentric3pTransformationY(ySource, deltaY) =  ySource + deltaY;
+geocentric3pTransformationZ(zSource, deltaZ) =  ySource + deltaZ;
+/*
+Geocentric transformation - 7 parameters using the "position vector convention". For using the "coordinate frame rotation" multiply the rotations by -1
+xSource - X coordinate 
+ySource - Y coordinate 
+zSource - Z coordinate 
+deltaX - X translation parameter (source to target)
+deltaY - Y translation parameter (source to target)
+deltaZ - Z translation parameter (source to target)
+a_x - Rotation
+a_y - Rotation
+a_z - Rotation
+*/
+geocentric7pTransformationX(xSource, ySource, zSource, deltaX, scale, a_y, a_z) = scale * (		  xSource - a_z * ySource + a_y * zSource) + deltaX;
+geocentric7pTransformationY(xSource, ySource, zSource, deltaY, scale, a_x, a_z) = scale * (a_z *  xSource + 	  ySource - a_x * zSource) + deltaY;
+geocentric7pTransformationZ(xSource, ySource, zSource, deltaZ, scale, a_x, a_y) = scale * (-a_y * xSource + a_x * ySource +		  zSource) + deltaZ;
+
+
+
+
+
+/*
+Abridged Molodensky
+a - Ellipsoid's semi-major axis (source ellipsoid)
+f - Ellipsoid's flattening (source ellipsoid). WGS84's f = 1/298.257223563 = 0.0033528107
+lon - Longitude in radians
+lat - Latitude in radians
+deltaX - Geocentric traslation parameter
+deltaY - Geocentric traslation parameter
+deltaZ - Geocentric traslation parameter
+deltaA - Ellipsoids' semi-major axis difference = aTaget - aSource
+deltaF - Ellipsoids' flattening difference = fTaget - fSource
+
+NOTE: Results are given in seconds of arc. Divide by 3600 to get decimal degrees
+*/
+amDeltaPhi(a, f, lon, lat, deltaX, deltaY, deltaZ, deltaA, deltaF) = (-deltaX*sin(lat)*cos(lon) - deltaY*sin(lat)*sin(lon) + deltaZ * cos(lat) + (a * deltaF + f * deltaA) * sin(2 * lat))/(rho(a, f, lat) * 0.00000484813681107637) where
+{
+	e2(f) = 2 * f - pow(f, 2);
+	rho(a, f, lat) = a * (1 - e2(f))/pow(1 - e2(f) * pow(sin(lat), 2), 1.5);
+};
+
+amDeltaLamda(a, f, lon, lat, deltaX, deltaY) = (-deltaX * sin(lon) + deltaY * cos(lon))/(v(a, f, lat) * cos(lat) * 0.00000484813681107637) where
+{
+	e2(f) = 2 * f - pow(f, 2);
+	v(a, f, lat) = a/sqrt(1 - e2(f) * pow(sin(lat), 2));
+};
+amDeltaH(a, f, lon, lat, deltaX, deltaY, deltaZ, deltaA, deltaF) = deltaX * cos(lat) * cos(lon) + deltaY * cos(lat) * sin(lon) + deltaZ * sin(lat) + (a * deltaF + f * deltaA) * pow(sin(lat), 2) - deltaA;
+
