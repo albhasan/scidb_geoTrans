@@ -180,7 +180,41 @@ iquery -aq "store(apply(GT_coods_geocentric_back, lonDIFF, lonWGS84deg - lonWGS8
 
 
 #TODO: test geocentric3pTransformationXYZ
-#TODO: test geocentric7pTransformationXYZ
+
+
+
+
+echo "------------------------------"
+echo "TEST: geocentric 7 parameters transformation"
+echo "Last 3 columns must be very small or 0. (given in meters)"
+echo "------------------------------"
+#Geocentric WGS72 to geoocentric WGS84
+#Example taken fom http://ftp.stu.edu.tw/BSD/NetBSD/pkgsrc/distfiles/epsg-6.11/G7-2.pdf
+#Page 84
+#
+#dX = 0.000 m
+#dY = 0.000 m
+#dZ = +4.5 m
+#R_X = 0.000 sec
+#R_Y = 0.000 sec
+#R_Z = +0.554 sec = 0.000002685868 radians
+#dS = +0.219 ppm 
+#
+#X_S = 3657660.66 m
+#Y_S = 255768.55 m 
+#Z_S = 5201382.11 m 
+#
+#X_T = 3657660.78 m
+#Y_T = 255778.43 m
+#Z_T = 5201387.75 m 
+
+iquery -naq "remove(GT_coods);"
+iquery -naq "remove(GT_coods_WGS84);"
+iquery -naq "remove(GT_coods_WGS84_diff);"
+iquery -naq "CREATE ARRAY GT_coods <xWGS72_GEOCEN:double, yWGS72_GEOCEN:double, zWGS72_GEOCEN:double>[col_id=0:0,10,0];"
+iquery -nq "INSERT INTO GT_coods '[(3657660.66, 255768.55, 5201382.11)]'"
+iquery -naq "store(apply(GT_coods, xWGS84_GEOCEN, geocentric7pTransformationX(xWGS72_GEOCEN, yWGS72_GEOCEN, zWGS72_GEOCEN, 0, 1 + 0.219/1000000, 0, 0.000002685868), yWGS84_GEOCEN, geocentric7pTransformationY(xWGS72_GEOCEN, yWGS72_GEOCEN, zWGS72_GEOCEN, 0, 1 + 0.219/1000000, 0, 0.000002685868), zWGS84_GEOCEN, geocentric7pTransformationZ(xWGS72_GEOCEN, yWGS72_GEOCEN, zWGS72_GEOCEN, 4.5, 1 + 0.219/1000000, 0, 0)), GT_coods_WGS84);"
+iquery -w 12 -aq "store(apply(GT_coods_WGS84, xDiff, xWGS84_GEOCEN - 3657660.78, yDiff, yWGS84_GEOCEN - 255778.43, zDiff, zWGS84_GEOCEN - 5201387.75), GT_coods_WGS84_diff);"
 
 
 
@@ -190,6 +224,7 @@ echo "TEST: Abridge Molodensky"
 echo "Last 3 columns must be very small or 0."
 echo "------------------------------"
 #Example taken fom http://ftp.stu.edu.tw/BSD/NetBSD/pkgsrc/distfiles/epsg-6.11/G7-2.pdf
+#Page 88
 #	SOURCE				TARGET
 #	WGS84				ED50
 #a	6378137				6378388
@@ -219,3 +254,42 @@ iquery -naq "CREATE ARRAY GT_coods <lonWGS84deg:double, latWGS84deg:double, hWGS
 iquery -nq "INSERT INTO GT_coods '[(2.12955, 53.8093944444444, 73)]'"
 iquery -naq "store(apply(GT_coods, lonED50deg, lonWGS84deg + amDeltaLamda(6378137, 0.0033528107, dd2rad(lonWGS84deg), dd2rad(latWGS84deg), 84.87, 96.49)/3600, latED50deg, latWGS84deg + amDeltaPhi(6378137, 0.0033528107, dd2rad(lonWGS84deg), dd2rad(latWGS84deg), 84.87, 96.49, 116.95, 251, 0.00001419270225588640)/3600, hED50, hWGS84 + amDeltaH(6378137, 0.0033528107, dd2rad(lonWGS84deg), dd2rad(latWGS84deg), 84.87, 96.49, 116.95, 251, 0.00001419270225588640)), GT_coods_am);"
 iquery -w 12 -aq "store(apply(GT_coods_am, lonED50_diff, 2.13096666666667 - lonED50deg, latED50_diff, 53.8101555555556 - latED50deg, hED50_diff, 28.091 - hED50), GT_coods_am_diff);"
+
+
+
+
+
+echo "------------------------------"
+echo "TEST: From MODIS SINUSOIDAL to WGS84 using Abridge Molodensky"
+echo "Last 3 columns must be very small or 0."
+echo "------------------------------"
+#	SOURCE				TARGET
+#	SPHERIC				WGS84
+#a	6371007.181			6378137				
+#f	0					0.0033528107
+#
+#SPHERIC to WGS84
+#deltaX	0
+#deltaY	0
+#deltaZ	0
+#deltaA	7129.8190000001
+#deltaF	0.0033528107
+#
+#UNKNOWN EXPECTED ANSWER
+
+iquery -naq "remove(GT_coods);"
+iquery -naq "remove(GT_coods_latlon);"
+iquery -naq "remove(GT_coods_latlonRADDD);"
+iquery -naq "remove(GT_coods_latlonRADDD_WGS84);"
+
+iquery -naq "CREATE ARRAY GT_coods <xMODSIN:double, yMODSIN:double>[col_id=0:0,10,0];"
+iquery -nq "INSERT INTO GT_coods '[(-8895490, 1111830)]'"
+iquery -naq "store(apply(GT_coods, lonSphericRAD, sinusoidal2sphericLON(xMODSIN, sinusoidal2sphericLAT(yMODSIN, 6371007.181), 6371007.181, 0), latSphericRAD, sinusoidal2sphericLAT(yMODSIN, 6371007.181)), GT_coods_latlonRAD);"
+iquery -naq "store(apply(GT_coods_latlonRAD, lonSphericDD, rad2dd(lonSphericRAD), latSphericDD, rad2dd(latSphericRAD)), GT_coods_latlonRADDD);"
+iquery -w 12 -aq "store(apply( GT_coods_latlonRADDD, lonWGS84deg, lonSphericDD + amDeltaLamda(6371007.181, 0, lonSphericRAD, latSphericRAD, 0, 0)/3600, latWGS84deg, latSphericDD + amDeltaPhi(6371007.181, 0, lonSphericRAD, latSphericRAD, 0, 0, 0, 7129.8190000001, 0.0033528107)/3600, hWGS84, amDeltaH(6371007.181, 0, lonSphericRAD, latSphericRAD, 0, 0, 0, 7129.8190000001, 0.0033528107)), GT_coods_latlonRADDD_WGS84);"
+
+
+
+# TODO: There are differences with 
+#echo -8895490 1111830 | cs2cs +proj=sinu +lon_0=0 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs +to +proj=longlat +ellps=WGS84 +datum=WGS84
+#echo -81.2328102781 9.9989729617 | cs2cs +proj=longlat +a=6371007.181 +b=6371007.181 +no_defs +to +proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs  
